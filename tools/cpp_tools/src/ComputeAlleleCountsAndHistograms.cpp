@@ -14,6 +14,7 @@
 #include "aux.h"
 
 #include <boost/program_options.hpp>
+#include <numeric> //HX: to use accumulate()
 
 namespace po = boost::program_options;
 
@@ -102,6 +103,7 @@ int main(int argc, char* argv[]) {
         int gt_id = bcf_hdr_id2int(header, BCF_DT_ID, "GT");
         int dp_id = bcf_hdr_id2int(header, BCF_DT_ID, "DP");
         int gq_id = bcf_hdr_id2int(header, BCF_DT_ID, "GQ");
+        int ad_id = bcf_hdr_id2int(header, BCF_DT_ID, "AD"); //HX
 
         if (bcf_hdr_idinfo_exists(header, BCF_HL_FMT, gt_id) == 0) {
             throw runtime_error("GT field was not found!");
@@ -114,6 +116,18 @@ int main(int argc, char* argv[]) {
         if (bcf_hdr_idinfo_exists(header, BCF_HL_FMT, gq_id) == 0) {
             throw runtime_error("GQ field was not found!");
         }
+
+        //HX
+        if (bcf_hdr_idinfo_exists(header, BCF_HL_FMT, dp_id) == 0) {
+            //HX: if cannot find dp, try to use info. of ad
+            cerr << "DP field was not found, try to find the AD field" << endl;
+            if (bcf_hdr_idinfo_exists(header, BCF_HL_FMT, ad_id) == 0) {
+                throw runtime_error("Neither DP nor AD field were found!");
+            } else {
+                cout << "AD field has been found and will be used to calculate DP" << endl;
+            }
+        }
+        //HX
 
         vector<string> input_info_fields;
 
@@ -137,7 +151,8 @@ int main(int argc, char* argv[]) {
                     (strcmp(header->hrec[i]->vals[0], "AVGDP_R") == 0) || (strcmp(header->hrec[i]->vals[0], "AVGGQ") == 0) ||
                     (strcmp(header->hrec[i]->vals[0], "AVGGQ_R") == 0) || (strcmp(header->hrec[i]->vals[0], "DP_HIST") == 0) ||
                     (strcmp(header->hrec[i]->vals[0], "DP_HIST_R") == 0) || (strcmp(header->hrec[i]->vals[0], "GQ_HIST") == 0) ||
-                    (strcmp(header->hrec[i]->vals[0], "GQ_HIST_R") == 0)) {
+                    //(strcmp(header->hrec[i]->vals[0], "GQ_HIST_R") == 0)) {
+                    (strcmp(header->hrec[i]->vals[0], "GQ_HIST_R") == 0) || (strcmp(header->hrec[i]->vals[0], "AD") == 0)) { //HX
                     continue;
                 }
                 if (find(info_fields.begin(), info_fields.end(), header->hrec[i]->vals[0]) != info_fields.end()) {
@@ -167,7 +182,8 @@ int main(int argc, char* argv[]) {
         write(ofp, "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Alternate Allele Frequencies\">\n");
         write(ofp, "##INFO=<ID=Het,Number=A,Type=Integer,Description=\"Heterozygous Counts\">\n");
         write(ofp, "##INFO=<ID=Hom,Number=A,Type=Integer,Description=\"Homozygous Alternate Counts\">\n");
-        write(ofp, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth at site\">\n");
+        //write(ofp, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth at site\">\n");
+        write(ofp, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth at site calculated by summing the Allelic depth\">\n");
         write(ofp, "##INFO=<ID=AVGDP,Number=1,Type=Float,Description=\"Average depth per sample\">\n");
         write(ofp, "##INFO=<ID=AVGDP_R,Number=R,Type=Float,Description=\"Average depth per sample carrying allele\">\n");
         write(ofp, "##INFO=<ID=AVGGQ,Number=1,Type=Float,Description=\"Average genotype quality per sample\">\n");
@@ -178,13 +194,17 @@ int main(int argc, char* argv[]) {
         write(ofp, "##INFO=<ID=GQ_HIST_R,Number=R,Type=String,Description=\"Histograms of GQ across samples carrying allele; Mids: 2.5|7.5|12.5|17.5|22.5|27.5|32.5|37.5|42.5|47.5|52.5|57.5|62.5|67.5|72.5|77.5|82.5|87.5|92.5|97.5\">\n");
         write(ofp, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n");
 
-        int gt_index, dp_index, gq_index;
-        TypeSwitcher gt_switcher, dp_switcher, gq_switcher;
+        //int gt_index, dp_index, gq_index;
+        //TypeSwitcher gt_switcher, dp_switcher, gq_switcher;
+        int gt_index, dp_index, gq_index, ad_index; //HX
+        TypeSwitcher gt_switcher, dp_switcher, gq_switcher, ad_switcher; //HX
+        
         unsigned int ns, an, ac_sample, ac_total;
         set<unsigned int> hom_sample;
         vector<unsigned int> ac, hom, het;
         int allele = 0;
-        vector<int32_t> gt_values, dp_values, gq_values;
+        // vector<int32_t> gt_values, dp_values, gq_values;
+        vector<int32_t> gt_values, dp_values, gq_values, ad_values; //HX
         vector<Histogram> dp_histograms, gq_histograms;
         set<int> unique_alleles;
 
@@ -211,6 +231,7 @@ int main(int argc, char* argv[]) {
             gt_index = -1;
             dp_index = -1;
             gq_index = -1;
+            ad_index = -1; //HX
 
             for (int i = 0; i < rec->n_fmt; ++i) {
                 if (rec->d.fmt[i].id == gt_id) {
@@ -219,6 +240,9 @@ int main(int argc, char* argv[]) {
                     dp_index = i;
                 } else if (rec->d.fmt[i].id == gq_id) {
                     gq_index = i;
+                } else if (rec->d.fmt[i].id == ad_id) {
+                    ad_index = i;
+                    //HX: ad_idex was found to be 2
                 }
             }
 
@@ -226,13 +250,24 @@ int main(int argc, char* argv[]) {
                 throw runtime_error("GT field was not found in FORMAT!");
             }
             gt_switcher.init(&rec->d.fmt[gt_index]);
-
-            if (dp_index == -1) {
-                cerr << "[warning] DP field missing for " << bcf_seqname(header, rec) << ":" << rec->pos + 1 << ":" << rec->d.allele[0] << "/" << rec->d.allele[1];
-                for (int i = 2; i < rec->n_allele; ++i) {
-                    cerr << "/" << rec->d.allele[i];
+            // HX
+            // if (dp_index == -1) {
+            //     cerr << "[warning] DP field missing for " << bcf_seqname(header, rec) << ":" << rec->pos + 1 << ":" << rec->d.allele[0] << "/" << rec->d.allele[1];
+            //     for (int i = 2; i < rec->n_allele; ++i) {
+            //         cerr << "/" << rec->d.allele[i];
+            if (dp_index == -1)
+            {
+                cerr << "DP field missing, try to use AD field to calculate DP field..." << endl;
+                if (ad_index == -1) {
+                    cerr << "[warning] DP and AD field missing for " << bcf_seqname(header, rec) << ":" << rec->pos + 1 << ":" << rec->d.allele[0] << "/" << rec->d.allele[1];
+                    for (int i = 2; i < rec->n_allele; ++i) {
+                        cerr << "/" << rec->d.allele[i];
+                    }
+                    cerr << endl;
+                } else {
+                    ad_switcher.init(&rec->d.fmt[ad_index]);
                 }
-                cerr << endl;
+                // cerr << endl;
             } else {
                 dp_switcher.init(&rec->d.fmt[dp_index]);
             }
@@ -276,8 +311,21 @@ int main(int argc, char* argv[]) {
 
             for (int i = 0; i < rec->n_sample; ++i) {
                 (gt_switcher.*(gt_switcher.read))(gt_values);
-                if (dp_index != -1) (dp_switcher.*(dp_switcher.read))(dp_values);
-                if (gq_index != -1) (gq_switcher.*(gq_switcher.read))(gq_values);
+                // if (dp_index != -1) (dp_switcher.*(dp_switcher.read))(dp_values);
+                // if (gq_index != -1) (gq_switcher.*(gq_switcher.read))(gq_values);
+                if (dp_index != -1) (dp_switcher.*(dp_switcher.read))(dp_values); 
+                if (gq_index != -1) {
+                    (gq_switcher.*(gq_switcher.read))(gq_values);
+                    }
+                //HX: try this to output the sum of ad_values
+                if (ad_index != -1){
+                    (ad_switcher.*(ad_switcher.read))(ad_values);
+                    //HX: try to cout the elements in the ad_values vector if not missing
+                    if (ad_values[0] != bcf_int32_missing){
+                    } else {
+                        cout << "ad_values are missing" << endl;
+                    }
+                }
 
                 ac_sample = 0u;
                 hom_sample.clear();
@@ -309,6 +357,11 @@ int main(int argc, char* argv[]) {
 
                 if (dp_index != -1 && dp_values[0] != bcf_int32_missing) {
                     dp_histogram.add((int)dp_values[0]);
+                } else { //HX
+                    if (ad_index != -1 && ad_values[0] != bcf_int32_missing) {
+                        //cout << "| sum of ad_values is: " << accumulate(ad_values.begin(), ad_values.end(), 0) << endl;
+                        dp_histogram.add((int)accumulate(ad_values.begin(), ad_values.end(), 0)); 
+                    }
                 }
 
                 if (gq_index != -1 && gq_values[0] != bcf_int32_missing) {
@@ -318,6 +371,10 @@ int main(int argc, char* argv[]) {
                 for (auto&& allele: unique_alleles) {
                     if (dp_index != -1 && dp_values[0] != bcf_int32_missing) {
                         dp_histograms[allele].add((int)dp_values[0]);
+                    } else {
+                        if (ad_index != -1 && ad_values[0] != bcf_int32_missing) {
+                            dp_histograms[allele].add((int)accumulate(ad_values.begin(), ad_values.end(), 0)); //HX
+                        }
                     }
                     if (gq_index != -1 && gq_values[0] != bcf_int32_missing) {
                         gq_histograms[allele].add((int)gq_values[0]);
@@ -327,6 +384,7 @@ int main(int argc, char* argv[]) {
                 gt_values.clear();
                 dp_values.clear();
                 gq_values.clear();
+                ad_values.clear(); //HX
             }
 
             ac_total = ac[1];
@@ -371,7 +429,7 @@ int main(int argc, char* argv[]) {
             for (int i = 2; i < rec->n_allele; ++i) {
                 write(ofp, ",%d", hom[i]);
             }
-            if (dp_index != -1) {
+            if (dp_index != -1 || ad_index != -1) {
                 write(ofp, ";DP=%d", (long long int)dp_histogram.get_total());
                 write(ofp, ";AVGDP=%g", dp_histogram.get_average());
                 write(ofp, ";AVGDP_R=%g", dp_histograms[0].get_average());
@@ -386,7 +444,7 @@ int main(int argc, char* argv[]) {
                     write(ofp, ",%g", gq_histograms[i].get_average());
                 }
             }
-            if (dp_index != -1) {
+            if (dp_index != -1 || ad_index != -1) {
                 write(ofp, ";DP_HIST=%s", dp_histogram.get_text());
                 write(ofp, ";DP_HIST_R=%s", dp_histograms[0].get_text());
                 for (int i = 1; i < rec->n_allele; ++i) {
