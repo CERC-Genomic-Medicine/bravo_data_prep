@@ -3,7 +3,9 @@ project(htslib VERSION 1.9.1)
 
 execute_process(COMMAND autoheader)
 execute_process(COMMAND autoconf)
-execute_process(COMMAND ./configure --enable-libcurl --enable-gcs --prefix=${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# execute_process(COMMAND ./configure --enable-libcurl --enable-gcs --prefix=${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+execute_process(COMMAND ./configure --enable-libcurl --enable-gcs --without-libdeflate --prefix=${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}hts${CMAKE_SHARED_LIBRARY_SUFFIX}" "${CMAKE_CURRENT_SOURCE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}hts${CMAKE_STATIC_LIBRARY_SUFFIX}"
         COMMAND $(MAKE)
