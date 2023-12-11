@@ -10,6 +10,7 @@
 #include <regex>
 #include <algorithm>
 #include <map>
+#include <unordered_map> //HX
 #include "bgzf.h"
 
 using namespace std;
@@ -21,6 +22,9 @@ namespace aux {
 
     /* to read samples from tab-delimited (without header) table saved in the text file */
     string read_samples(const char* samples_file, unsigned int col_idx) throw (runtime_error);
+
+    /* HX: to read samples from list saved in the text file - one sample per line. Two space- or tab-delimited columns (no header):  sample name, population label */
+    string read_samples(const char* samples_file, unordered_map<string, string>& populations) throw (runtime_error);
 
     /* to read sample's current name and new name from tab-delimited (without header) table saved in the text file */
     map<string, string> read_sample_names_map(const char* samples_file, unsigned int name_col_idx, unsigned int new_name_col_idx) throw (runtime_error);
