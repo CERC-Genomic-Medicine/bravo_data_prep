@@ -91,8 +91,8 @@ data/
 - coverage directory contents are taken from result/ dir of coverage workflow
 - `variant_map.tsv.gz` is an output of `RandomHetHom3`
 
-### Build Coverage Files:
-  # Use vcf files as input files; Set the input and output directories
+# Build Coverage Files:
+  ### Use vcf files as input files; Set the input and output directories
   ```
   input_dir = /data/basis/vcfs
   output_dir = /data/runtime/coverage/full
@@ -101,7 +101,7 @@ data/
   prune075_dir = /data/runtime/coverage/bin_0.75
   prune100_di = /data/runtime/coverage/bin_1.00
   ```
-  # Set input and output files
+  ### Set input and output files
   ```
   input_file="$input_dir/chrom${chr}_output.vep.vcf.gz"
   output_file="$output_dir/${chr}.full.tsv.gz"
@@ -111,10 +111,9 @@ data/
   pruned075_output_file="$prune075_dir/${chr}.bin_0.75.tsv.gz"
   pruned100_output_file="$prune100_dir/${chr}.bin_1.00.tsv.gz"
   ```
-  # Run the command for each chromosome
-  `python create_coverage_vcf.py -i "$input_file" | bgzip -c > "$output_file"`
-  # tabix index
+  ### Run the command for each chromosome
   ```
+  python create_coverage_vcf.py -i "$input_file" | bgzip -c > "$output_file"
   tabix -s 1 -b 2 -e 3 "$output_file"
 
   python ../py_tools/prune.py -i "$output_file" -l 0.25 -o "$pruned025_output_file"
