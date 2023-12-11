@@ -13,7 +13,8 @@ argparser.add_argument('-o', '--out', metavar = 'file', dest = 'out_coverage_fil
 
 
 def write(output_file, data):
-   output_file.write('{}\t{:d}\t{:d}\t'.format(data['chrom'], data['start'], data['end']).encode())
+   # output_file.write('{}\t{:d}\t{:d}\t'.format(data['chrom'], data['start'], data['end']).encode())
+   output_file.write('{}\t{:d}\t{:d}\t'.format(data['chrom'].replace('chr', ''), data['start'], data['end']).encode()) # HX
    rapidjson.dump(data, output_file)
    output_file.write('\n'.encode())
 
@@ -29,7 +30,9 @@ if __name__ == '__main__':
       for line in ifile:
          chrom, start, stop, data = line.rstrip().split('\t')
          data = rapidjson.loads(data)
-         if (abs(bin_data['mean'] - data['mean']) > args.fluctuation_limit) or (abs(bin_data['median'] - data['median']) > args.fluctuation_limit):
+         
+         # if (abs(bin_data['mean'] - data['mean']) > args.fluctuation_limit) or (abs(bin_data['median'] - data['median']) > args.fluctuation_limit):
+         if (abs(bin_data['mean'] - data['mean']) > args.fluctuation_limit): # HX
             write(ofile, bin_data)
             bin_data = data
          else:
